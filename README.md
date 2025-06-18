@@ -1,4 +1,5 @@
 # MiniGit
+```
 #include <iostream>
 #include <filesystem>
 #include <unordered_map>
@@ -28,3 +29,4 @@ public:
         fs::create_directories(objectsPath);
         std::ofstream(headPath, std::ios::app);
         std::ofstream(indexPath, std::ios::trunc);
+```
