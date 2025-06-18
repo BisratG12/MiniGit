@@ -29,4 +29,17 @@ public:
         fs::create_directories(objectsPath);
         std::ofstream(headPath, std::ios::app);
         std::ofstream(indexPath, std::ios::trunc);
+void add(const std::string& file) {
+        std::ifstream fin(file);
+        if (!fin) { std::cerr << "File not found\n"; return; }
+        std::stringstream ss; ss << fin.rdbuf();
+        std::string content = ss.str();
+        std::string hash = simpleHash(content);
+        fs::path obj = objectsPath / hash;
+        std::ofstream(obj) << content;
+
+        std::ofstream idx(indexPath, std::ios::app);
+        idx << file << " " << hash << "\n";
+        std::cout << "Added " << file << "\n";
+    }
 ```
