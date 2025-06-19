@@ -102,4 +102,89 @@ public:
             cur = parent;
         }
     }
+void branch(const std::string& branchName) {
+        // creates the "refs" directory in the .minigit folder
+        fs::path refsPath = repoPath / "refs";
+        
+        // makes sure refs folder is available
+        fs::create_directories(refsPath);
+
+        // creates a path for a new branch file
+        fs::path branchFile = refsPath / branchName;
+
+        // read the current commit hash from the HEAD file
+        std::ifstream headFile(headPath);
+        std::string currentCommit;
+        std::getline(headFile, currentCommit);
+        headFile.close();
+
+        // check whether a commit in HEAD exists to create a branch
+        if (currentCommit.empty()) {
+            std::cerr << "Error: NO commit exist in HEAD.\n";
+            return;
+        }
+
+        // write the current commit hash into the new branch file
+        std::ofstream branchOut(branchFile);
+        branchOut << currentCommit;
+        branchOut.close();
+
+        // tell the user that the branch is successfully created
+        std::cout << "The Branch '" << branchName << "' created, pointing to " << currentCommit << "\n";
+    }
+
+    void checkoutBranch(const std::string& branchName) {
+        // creates the way to the branch file under .minigit/refs/
+        fs::path branchPath = repoPath / "refs" / branchName;
+
+        // check whether the branch file exists
+        if (!fs::exists(branchPath)) {
+            std::cerr << "The Branch '" << branchName << "DOES NOT EXIST.\n";
+            return;
+        }
+    
+        // Read commithash that is stored in the branch file
+        std::ifstream branchIn(branchPath);
+        std::string commitHash;
+        std::getline(branchIn, commitHash);
+        branchIn.close();
+
+        // locate the related commit file using the hash commit
+        fs::path commitFile = objectsPath / commitHash;
+        if (!fs::exists(commitFile)) {
+            std::cerr << "Commit file does not exist for branch '" << branchName << "'.\n";
+            return;
+        }
+
+        // make the commit file read its contents
+        std::ifstream commitIn(commitFile);
+        std::string line;
+        std::getline(commitIn, line);  // Skip timestamp or commit message
+        std::getline(commitIn, line);  // Skip parent commit hash
+
+        // Read and restore each tracked file
+        // each line shows a file and its hash
+        while (std::getline(commitIn, line)) {
+            std::istringstream iss(line);
+            std::string filename, fileHash;
+            iss >> filename >> fileHash;
+
+            fs::path objectFile = objectsPath / fileHash;
+            if (!fs::exists(objectFile)) {
+                std::cerr << "Missing object for " << filename << "\n";
+                continue;
+            }
+
+            // Restore the file by copying its content from the object file
+            std::ifstream inFile(objectFile);
+            std::ofstream outFile(filename);
+            outFile << inFile.rdbuf();
+            std::cout << "Restored: " << filename << "\n";
+        }
+
+        // Update HEAD to point to the recent commit from checkout branch
+        std::ofstream(headPath, std::ios::trunc) << commitHash;
+        std::cout << "Switched to branch '" << branchName << "'\n";
+    }
+
 ```
