@@ -420,6 +420,16 @@ int main() {
             else mg.merge(arg);
         }
 
+        else if (cmd == "diff") {
+            std::string commit1, commit2;
+            ss >> commit1 >> commit2;
+            if (commit1.empty() || commit2.empty()) {
+                cout << "Usage: diff <commit1> <commit2>\n";
+            } else {
+                mg.diff(commit1, commit2); // Show line-by-line differences
+            }
+        }
+
         else {
             cout << "Unknown command: " << cmd << "\n";
         }
