@@ -186,5 +186,48 @@ void branch(const std::string& branchName) {
         std::ofstream(headPath, std::ios::trunc) << commitHash;
         std::cout << "Switched to branch '" << branchName << "'\n";
     }
+int main() {
+    MiniGit mg;
+    std::string command;
+
+    while (true) {
+        std::cout << "\nEnter command (init, add <file>, commit <msg>, log, branch <name>, checkout <name>, exit): ";
+        std::getline(std::cin, command);
+        std::istringstream iss(command);
+        std::string cmd;
+        iss >> cmd;
+
+        if (cmd == "exit") break;
+        else if (cmd == "init") mg.initRepo();
+        else if (cmd == "add") {
+            std::string file;
+            iss >> file;
+            if (file.empty()) std::cout << "Specify file.\n";
+            else mg.add(file);
+        }
+        else if (cmd == "commit") {
+            std::string msg;
+            std::getline(iss >> std::ws, msg);
+            if (msg.empty()) std::cout << "Specify message.\n";
+            else mg.commit(msg);
+        }
+        else if (cmd == "log") mg.log();
+        else if (cmd == "branch") {
+            std::string branchName;
+            iss >> branchName;
+            if (branchName.empty()) std::cout << "Specify branch name.\n";
+            else mg.branch(branchName);
+        }
+        else if (cmd == "checkout") {
+            std::string branchName;
+            iss >> branchName;
+            if (branchName.empty()) std::cout << "Specify branch name.\n";
+            else mg.checkoutBranch(branchName);
+        }
+        else std::cout << "Unknown command.\n";
+    }
+
+    return 0;
+}
 
 ```
