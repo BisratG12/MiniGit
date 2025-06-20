@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <map>
 #include <set>
+#include <algorithm>
 namespace fs = std::filesystem;
 using namespace std;
 
