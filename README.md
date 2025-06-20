@@ -186,48 +186,186 @@ void branch(const std::string& branchName) {
         std::ofstream(headPath, std::ios::trunc) << commitHash;
         std::cout << "Switched to branch '" << branchName << "'\n";
     }
+void merge(const std::string& branchName) {
+    fs::path branchPath = repoPath / "refs" / branchName;
+
+    if (!fs::exists(branchPath)) {
+        std::cerr << "Branch '" << branchName << "' does not exist.\n";
+        return;
+    }
+
+    // Get commit hashes
+    std::string currentCommitHash, targetCommitHash;
+    std::ifstream headIn(headPath); std::getline(headIn, currentCommitHash); headIn.close();
+    std::ifstream branchIn(branchPath); std::getline(branchIn, targetCommitHash); branchIn.close();
+
+    if (currentCommitHash.empty() || targetCommitHash.empty()) {
+        std::cerr << "Missing commit hash.\n";
+        return;
+    }
+
+    std::set<std::string> visited;
+    std::string lca = "";
+
+    // Traverse current branch
+    std::string cur = currentCommitHash;
+    while (!cur.empty()) {
+        visited.insert(cur);
+        std::ifstream commitFile(objectsPath / cur);
+        std::string skip, parent;
+        std::getline(commitFile, skip); // timestamp
+        std::getline(commitFile, parent); // parent
+        cur = parent;
+    }
+
+    // Traverse target branch and find common ancestor
+    cur = targetCommitHash;
+    while (!cur.empty()) {
+        if (visited.count(cur)) {
+            lca = cur;
+            break;
+        }
+        std::ifstream commitFile(objectsPath / cur);
+        std::string skip, parent;
+        std::getline(commitFile, skip);
+        std::getline(commitFile, parent);
+        cur = parent;
+    }
+
+    if (lca.empty()) {
+        std::cerr << "No common ancestor found.\n";
+        return;
+    }
+
+    // Helper load file list from commit 
+    auto loadFiles = [&](const std::string& commitHash) {
+        std::map<std::string, std::string> fileMap;
+        std::ifstream file(objectsPath / commitHash);
+        std::string line;
+        std::getline(file, line); // skip timestamp
+        std::getline(file, line); // skip parent
+        while (std::getline(file, line)) {
+            std::istringstream iss(line);
+            std::string fname, fhash;
+            iss >> fname >> fhash;
+            fileMap[fname] = fhash;
+        }
+        return fileMap;
+    };
+
+    auto baseFiles = loadFiles(lca);
+    auto currFiles = loadFiles(currentCommitHash);
+    auto otherFiles = loadFiles(targetCommitHash);
+
+    std::vector<std::pair<std::string, std::string>> filesToMerge;
+
+    for (const auto& [filename, otherHash] : otherFiles) {
+        std::string baseHash = baseFiles.count(filename) ? baseFiles[filename] : "";
+        std::string currHash = currFiles.count(filename) ? currFiles[filename] : "";
+
+        if (currHash == otherHash || otherHash == baseHash) {
+            continue; // no change or same as base
+        }
+
+        if (currHash != baseHash && currHash != "" && baseHash != "" && currHash != otherHash) {
+            std::cout << "CONFLICT: both modified " << filename << "\n";
+            continue;
+        }
+
+        // Safe to merge
+        fs::path objectFile = objectsPath / otherHash;
+        if (!fs::exists(objectFile)) {
+            std::cerr << "Missing object for " << filename << "\n";
+            continue;
+        }
+
+        std::ifstream inFile(objectFile);
+        std::ofstream outFile(filename);
+        outFile << inFile.rdbuf();
+        std::cout << "Merged: " << filename << "\n";
+
+        filesToMerge.emplace_back(filename, otherHash);
+    }
+
+    // Update index with merged files
+    std::ofstream idx(indexPath, std::ios::app);
+    for (const auto& [filename, fileHash] : filesToMerge)
+        idx << filename << " " << fileHash << "\n";
+
+    // Make commit for merged state
+    commit("Merged branch " + branchName);
+}
+
+
+    
+};
+
+
 int main() {
     MiniGit mg;
-    std::string command;
+    string input;
+
+    cout << "Welcome to MiniGit CLI!\nType commands like: init, add <file>, commit <msg>, log, branch <name>, checkout <branch>, merge <branch>, exit\n";
 
     while (true) {
-        std::cout << "\nEnter command (init, add <file>, commit <msg>, log, branch <name>, checkout <name>, exit): ";
-        std::getline(std::cin, command);
-        std::istringstream iss(command);
-        std::string cmd;
-        iss >> cmd;
+        cout << "\nMiniGit> ";
+        getline(cin, input);
+
+        stringstream ss(input);
+        string cmd, arg;
+        ss >> cmd;
 
         if (cmd == "exit") break;
-        else if (cmd == "init") mg.initRepo();
+
+        else if (cmd == "init") {
+            mg.initRepo();
+        }
+
         else if (cmd == "add") {
-            std::string file;
-            iss >> file;
-            if (file.empty()) std::cout << "Specify file.\n";
-            else mg.add(file);
+            ss >> arg;
+            if (arg.empty()) cout << "Usage: add <filename>\n";
+            else mg.add(arg);
         }
+
         else if (cmd == "commit") {
-            std::string msg;
-            std::getline(iss >> std::ws, msg);
-            if (msg.empty()) std::cout << "Specify message.\n";
-            else mg.commit(msg);
+            getline(ss, arg); // get the full message
+            if (arg.empty()) cout << "Usage: commit <message>\n";
+            else {
+                // Remove leading space from message
+                arg = arg.substr(arg.find_first_not_of(" "));
+                mg.commit(arg);
+            }
         }
-        else if (cmd == "log") mg.log();
+
+        else if (cmd == "log") {
+            mg.log();
+        }
+
         else if (cmd == "branch") {
-            std::string branchName;
-            iss >> branchName;
-            if (branchName.empty()) std::cout << "Specify branch name.\n";
-            else mg.branch(branchName);
+            ss >> arg;
+            if (arg.empty()) cout << "Usage: branch <branch-name>\n";
+            else mg.branch(arg);
         }
+
         else if (cmd == "checkout") {
-            std::string branchName;
-            iss >> branchName;
-            if (branchName.empty()) std::cout << "Specify branch name.\n";
-            else mg.checkoutBranch(branchName);
+            ss >> arg;
+            if (arg.empty()) cout << "Usage: checkout <branch-name>\n";
+            else mg.checkoutBranch(arg);
         }
-        else std::cout << "Unknown command.\n";
+
+        else if (cmd == "merge") {
+            ss >> arg;
+            if (arg.empty()) cout << "Usage: merge <branch-name>\n";
+            else mg.merge(arg);
+        }
+
+        else {
+            cout << "Unknown command: " << cmd << "\n";
+        }
     }
 
     return 0;
 }
+
 
 ```
