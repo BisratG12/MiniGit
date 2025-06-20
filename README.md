@@ -296,8 +296,69 @@ void merge(const std::string& branchName) {
     commit("Merged branch " + branchName);
 }
 
+void diff(const std::string& commit1, const std::string& commit2) {
+    // Helper: Load all files and their hashes from a given commit
+    auto loadFiles = [&](const std::string& commitHash) {
+        std::map<std::string, std::string> fileMap;
+        std::ifstream file(objectsPath / commitHash);
+        std::string line;
+        std::getline(file, line); // skip timestamp
+        std::getline(file, line); // skip parent
+        while (std::getline(file, line)) {
+            std::istringstream iss(line);
+            std::string fname, fhash;
+            iss >> fname >> fhash;
+            fileMap[fname] = fhash;
+        }
+        return fileMap;
+    };
 
-    
+    auto getLinesFromObject = [&](const std::string& hash) {
+        std::vector<std::string> lines;
+        std::ifstream file(objectsPath / hash);
+        std::string line;
+        while (std::getline(file, line))
+            lines.push_back(line);
+        return lines;
+    };
+
+    auto files1 = loadFiles(commit1);
+    auto files2 = loadFiles(commit2);
+
+    std::set<std::string> allFiles;
+    for (const auto& [f, _] : files1) allFiles.insert(f);
+    for (const auto& [f, _] : files2) allFiles.insert(f);
+
+    for (const auto& file : allFiles) {
+        std::cout << "\n--- File: " << file << " ---\n";
+
+        auto it1 = files1.find(file), it2 = files2.find(file);
+
+        if (it1 == files1.end()) {
+            std::cout << "+ File added in " << commit2 << "\n";
+            continue;
+        }
+        if (it2 == files2.end()) {
+            std::cout << "- File deleted in " << commit2 << "\n";
+            continue;
+        }
+
+        auto lines1 = getLinesFromObject(it1->second);
+        auto lines2 = getLinesFromObject(it2->second);
+
+        size_t maxLen = std::max(lines1.size(), lines2.size());
+        for (size_t i = 0; i < maxLen; ++i) {
+            std::string l1 = i < lines1.size() ? lines1[i] : "";
+            std::string l2 = i < lines2.size() ? lines2[i] : "";
+
+            if (l1 != l2) {
+                std::cout << "- " << l1 << "\n";
+                std::cout << "+ " << l2 << "\n";
+            }
+        }
+    }
+    }
+   
 };
 
 
